@@ -1,3 +1,6 @@
+// Names: Juan Nunez A3N5402
+// Jack Arnold A3Y5N13
+
 #include <iostream>
 #include "NeuralNetwork.hpp"
 #include "utility.hpp"
