@@ -61,6 +61,28 @@ vector<double> NeuralNetwork::predict(DataInstance instance) {
     // their value is passed forward directly.
     // Use visitPredictNode and visitPredictNeighbor to handle the neural network math
     // at each step of your traversal.
+    queue<int> qu;
+    for(int i = 0; i < inputNodeIds.size(); i++) {
+        int nodeID = inputNodeIds.at(i);
+        nodes.at(nodeID)->postActivationValue = input.at(i); // updating values basically
+        qu.push(nodeID);
+    }
+    
+    while(!qu.empty()) {
+        int curr = qu.front();
+        qu.pop();
+        bool isValid = false;
+        for(int val : inputNodeIds) {
+            if(curr == val) {
+                isValid = true;
+            }
+        }
+        for(auto const& [neighbor, connect] : adjacencyList.at(curr)) {
+            visitPredictNeighbor(connect);
+            visitPredictNode(neighbor);
+            qu.push(neighbor);
+        }
+    }
 
     vector<double> output;
     for (int i = 0; i < outputNodeIds.size(); i++) {
@@ -89,9 +111,11 @@ bool NeuralNetwork::contribute(double y, double p) {
     // should not be called on them.
     // The contributions map acts as your "visited" set and also stores each node's
     // computed contribution so it is not recomputed if reached by multiple paths.
-
-
     flush();
+
+    for(int inputId : inputLayerNodeIds) {
+        contribute(inputId, y, p);
+    }
 
     return true;
 }
@@ -99,6 +123,10 @@ bool NeuralNetwork::contribute(double y, double p) {
 double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
     visitContributeStart(nodeId); // don't remove this line, used for visualization
     // incomingContribution: the error signal returned by a recursive call on a neighbor.
+    if(contributions.count(nodeId)) {
+        return contributions.at(nodeId);
+    }
+    
     double incomingContribution = 0;
     // outgoingContribution: built up from this node's neighbors, then scaled by
     // this node's activation derivative before being returned to the previous layer.
@@ -113,9 +141,28 @@ double NeuralNetwork::contribute(int nodeId, const double& y, const double& p) {
         // You do not need to understand this derivation.
         outgoingContribution = -1 * ((y - p) / (p * (1 - p)));
     }
+    else {
+        for(auto const& [neighbor, connect]: adjacencyList.at(nodeId)) {
+            incomingContribution = contribute(neighbor, y, p);
+            visitContributeNeighbor(connect, incomingContribution, outgoingContribution);
+            outgoingContribution += incomingContribution * connect.weight;
+        }
+        outgoingContribution *= currNode->derive();
+
+        bool isInput = false;
+        for(int val: inputNodeIds) {
+            if(val == nodeId) {
+                isInput = true;
+                break;
+            }
+        }
+        if(!isInput) {
+            visitContributeNode(nodeId, outgoingContribution);
+        }
+    }
 
     // Before returning, store outgoingContribution in the contributions map.
-
+    contributions[nodeId] = outgoingContribution;
     return outgoingContribution;
 }
 // STUDENT TODO: IMPLEMENT
